@@ -3,7 +3,6 @@
 package authorizer_test
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"testing"
@@ -16,7 +15,7 @@ import (
 
 func TestTenantRBACLifecycleAndIsolation(t *testing.T) {
 	authz := newTestAuthorizer(t)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	alice, err := authz.CreateUser(ctx, authorizer.CreateUserInput{Username: "alice"})
 	requireNoError(t, err)
@@ -87,7 +86,7 @@ func TestTenantRBACLifecycleAndIsolation(t *testing.T) {
 
 func TestPermissionRegistrationIsAnUpsert(t *testing.T) {
 	authz := newTestAuthorizer(t)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	first, err := authz.RegisterPermissions(ctx, authorizer.PermissionInput{Code: "report.read", Name: "Old"})
 	requireNoError(t, err)
@@ -100,7 +99,7 @@ func TestPermissionRegistrationIsAnUpsert(t *testing.T) {
 
 func TestTrailingWildcard(t *testing.T) {
 	authz := newTestAuthorizer(t)
-	ctx := context.Background()
+	ctx := t.Context()
 	user, err := authz.CreateUser(ctx, authorizer.CreateUserInput{Username: "reader"})
 	requireNoError(t, err)
 	tenant, err := authz.CreateTenant(ctx, authorizer.CreateTenantInput{Slug: "wildcards", Name: "Wildcards"})
@@ -117,7 +116,7 @@ func TestTrailingWildcard(t *testing.T) {
 	assertAllowed(t, authz, user.ID, tenant.ID, "documents.read", false)
 }
 
-func newTestAuthorizer(t *testing.T) *authorizer.Authorizer {
+func newTestAuthorizer(t *testing.T) authorizer.ManagementAuthorizer {
 	t.Helper()
 	dsn := fmt.Sprintf("file:%s?mode=memory&cache=shared&_foreign_keys=on", t.Name())
 	db, err := gorm.Open(sqlite.Open(dsn), &gorm.Config{
@@ -132,13 +131,13 @@ func newTestAuthorizer(t *testing.T) *authorizer.Authorizer {
 
 	authz, err := authorizer.New(db)
 	requireNoError(t, err)
-	requireNoError(t, authz.AutoMigrate(context.Background()))
+	requireNoError(t, authz.AutoMigrate(t.Context()))
 	return authz
 }
 
-func assertAllowed(t *testing.T, authz *authorizer.Authorizer, userID, tenantID uint64, permission string, expected bool) {
+func assertAllowed(t *testing.T, authz authorizer.Authorizer, userID, tenantID uint64, permission string, expected bool) {
 	t.Helper()
-	allowed, err := authz.Enforce(context.Background(), userID, tenantID, permission)
+	allowed, err := authz.Enforce(t.Context(), userID, tenantID, permission)
 	requireNoError(t, err)
 	if allowed != expected {
 		t.Fatalf("Enforce(%d, %d, %q) = %v, want %v", userID, tenantID, permission, allowed, expected)

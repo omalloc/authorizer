@@ -56,6 +56,35 @@ if err := authz.AutoMigrate(ctx); err != nil {
 
 `AutoMigrate` 会创建七张 `authz_` 前缀表。生产环境也可以用这些公开 model 生成并管理自己的版本化迁移。
 
+`authorizer.Authorizer` 是运行时鉴权接口，只包含 `Enforce` 方法。`authorizer.New` 返回基于 GORM 的 `*authorizer.DefaultAuthorizer`，除实现鉴权接口外，还提供上述迁移能力和后续章节中的用户、租户、角色、权限管理操作。
+
+如果权限数据由其他服务、缓存或自有存储维护，可以实现 `authorizer.Authorizer` 并直接替换默认实现：
+
+```go
+type RemoteAuthorizer struct {
+    client *PermissionClient
+}
+
+func (a *RemoteAuthorizer) Enforce(
+    ctx context.Context,
+    userID, tenantID uint64,
+    permission string,
+) (bool, error) {
+    return a.client.Check(ctx, userID, tenantID, permission)
+}
+
+var authz authorizer.Authorizer = &RemoteAuthorizer{client: permissionClient}
+
+httpServer := http.NewServer(
+    http.Middleware(
+        authenticationMiddleware,
+        rbacmw.Server(authz),
+    ),
+)
+```
+
+自定义实现只负责返回允许、拒绝或检查错误，不需要依赖 GORM，也不需要实现默认实现中的管理操作。
+
 ## 扩展 User 字段
 
 Go 不能直接给依赖包中的 `authorizer.User` 增加字段。推荐把 RBAC 用户作为授权身份，将头像、手机号等业务字段放在宿主项目自己的一对一扩展表中。这样升级本包时不会与 `authz_users` 的模型迁移冲突。

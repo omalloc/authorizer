@@ -39,7 +39,7 @@ type PermissionInput struct {
 
 // CreateUser registers an authorization identity. Passwords and other
 // credentials belong to the host application's authentication subsystem.
-func (a *Authorizer) CreateUser(ctx context.Context, input CreateUserInput) (*User, error) {
+func (a *DefaultAuthorizer) CreateUser(ctx context.Context, input CreateUserInput) (*User, error) {
 	username := strings.TrimSpace(input.Username)
 	if ctx == nil || username == "" {
 		return nil, fmt.Errorf("%w: username is required", ErrInvalidArgument)
@@ -66,7 +66,7 @@ func (a *Authorizer) CreateUser(ctx context.Context, input CreateUserInput) (*Us
 }
 
 // UserByID fetches a user by primary key.
-func (a *Authorizer) UserByID(ctx context.Context, userID uint64) (*User, error) {
+func (a *DefaultAuthorizer) UserByID(ctx context.Context, userID uint64) (*User, error) {
 	if ctx == nil || userID == 0 {
 		return nil, fmt.Errorf("%w: user is required", ErrInvalidArgument)
 	}
@@ -78,7 +78,7 @@ func (a *Authorizer) UserByID(ctx context.Context, userID uint64) (*User, error)
 }
 
 // UserByUsername fetches a user by its stable username.
-func (a *Authorizer) UserByUsername(ctx context.Context, username string) (*User, error) {
+func (a *DefaultAuthorizer) UserByUsername(ctx context.Context, username string) (*User, error) {
 	username = strings.TrimSpace(username)
 	if ctx == nil || username == "" {
 		return nil, fmt.Errorf("%w: username is required", ErrInvalidArgument)
@@ -91,7 +91,7 @@ func (a *Authorizer) UserByUsername(ctx context.Context, username string) (*User
 }
 
 // SetUserStatus enables or disables a user globally.
-func (a *Authorizer) SetUserStatus(ctx context.Context, userID uint64, status Status) error {
+func (a *DefaultAuthorizer) SetUserStatus(ctx context.Context, userID uint64, status Status) error {
 	if ctx == nil || userID == 0 || !validStatus(status) {
 		return fmt.Errorf("%w: user and valid status are required", ErrInvalidArgument)
 	}
@@ -99,7 +99,7 @@ func (a *Authorizer) SetUserStatus(ctx context.Context, userID uint64, status St
 }
 
 // CreateTenant creates an empty tenant.
-func (a *Authorizer) CreateTenant(ctx context.Context, input CreateTenantInput) (*Tenant, error) {
+func (a *DefaultAuthorizer) CreateTenant(ctx context.Context, input CreateTenantInput) (*Tenant, error) {
 	if ctx == nil {
 		return nil, fmt.Errorf("%w: context is nil", ErrInvalidArgument)
 	}
@@ -108,7 +108,7 @@ func (a *Authorizer) CreateTenant(ctx context.Context, input CreateTenantInput) 
 
 // CreateTenantWithOwner atomically creates a tenant, activates owner membership,
 // creates a built-in owner role with "*", and assigns that role to ownerUserID.
-func (a *Authorizer) CreateTenantWithOwner(ctx context.Context, input CreateTenantInput, ownerUserID uint64) (*Tenant, error) {
+func (a *DefaultAuthorizer) CreateTenantWithOwner(ctx context.Context, input CreateTenantInput, ownerUserID uint64) (*Tenant, error) {
 	if ctx == nil || ownerUserID == 0 {
 		return nil, fmt.Errorf("%w: owner is required", ErrInvalidArgument)
 	}
@@ -124,7 +124,7 @@ func (a *Authorizer) CreateTenantWithOwner(ctx context.Context, input CreateTena
 		if err != nil {
 			return err
 		}
-		txAuthorizer := &Authorizer{db: tx, permissionMatcher: a.permissionMatcher}
+		txAuthorizer := &DefaultAuthorizer{db: tx, permissionMatcher: a.permissionMatcher}
 		if err := txAuthorizer.AddMember(ctx, tenant.ID, ownerUserID); err != nil {
 			return err
 		}
@@ -172,7 +172,7 @@ func createTenant(db *gorm.DB, ctx context.Context, input CreateTenantInput) (*T
 	return tenant, nil
 }
 
-func (a *Authorizer) TenantByID(ctx context.Context, tenantID uint64) (*Tenant, error) {
+func (a *DefaultAuthorizer) TenantByID(ctx context.Context, tenantID uint64) (*Tenant, error) {
 	if ctx == nil || tenantID == 0 {
 		return nil, fmt.Errorf("%w: tenant is required", ErrInvalidArgument)
 	}
@@ -183,7 +183,7 @@ func (a *Authorizer) TenantByID(ctx context.Context, tenantID uint64) (*Tenant, 
 	return &tenant, nil
 }
 
-func (a *Authorizer) SetTenantStatus(ctx context.Context, tenantID uint64, status Status) error {
+func (a *DefaultAuthorizer) SetTenantStatus(ctx context.Context, tenantID uint64, status Status) error {
 	if ctx == nil || tenantID == 0 || !validStatus(status) {
 		return fmt.Errorf("%w: tenant and valid status are required", ErrInvalidArgument)
 	}
@@ -191,7 +191,7 @@ func (a *Authorizer) SetTenantStatus(ctx context.Context, tenantID uint64, statu
 }
 
 // AddMember adds or reactivates a user in a tenant.
-func (a *Authorizer) AddMember(ctx context.Context, tenantID, userID uint64) error {
+func (a *DefaultAuthorizer) AddMember(ctx context.Context, tenantID, userID uint64) error {
 	if ctx == nil || tenantID == 0 || userID == 0 {
 		return fmt.Errorf("%w: user and tenant are required", ErrInvalidArgument)
 	}
@@ -211,7 +211,7 @@ func (a *Authorizer) AddMember(ctx context.Context, tenantID, userID uint64) err
 
 // SetMembershipStatus enables or disables one tenant membership. Existing role
 // assignments are retained, allowing safe suspension and restoration.
-func (a *Authorizer) SetMembershipStatus(ctx context.Context, tenantID, userID uint64, status Status) error {
+func (a *DefaultAuthorizer) SetMembershipStatus(ctx context.Context, tenantID, userID uint64, status Status) error {
 	if ctx == nil || tenantID == 0 || userID == 0 || !validStatus(status) {
 		return fmt.Errorf("%w: user, tenant and valid status are required", ErrInvalidArgument)
 	}
@@ -228,7 +228,7 @@ func (a *Authorizer) SetMembershipStatus(ctx context.Context, tenantID, userID u
 
 // RemoveMember atomically deletes a membership and all of that user's role
 // assignments in the tenant.
-func (a *Authorizer) RemoveMember(ctx context.Context, tenantID, userID uint64) error {
+func (a *DefaultAuthorizer) RemoveMember(ctx context.Context, tenantID, userID uint64) error {
 	if ctx == nil || tenantID == 0 || userID == 0 {
 		return fmt.Errorf("%w: user and tenant are required", ErrInvalidArgument)
 	}
@@ -248,7 +248,7 @@ func (a *Authorizer) RemoveMember(ctx context.Context, tenantID, userID uint64) 
 }
 
 // CreateRole creates a tenant-scoped role.
-func (a *Authorizer) CreateRole(ctx context.Context, input CreateRoleInput) (*Role, error) {
+func (a *DefaultAuthorizer) CreateRole(ctx context.Context, input CreateRoleInput) (*Role, error) {
 	code, name := strings.TrimSpace(input.Code), strings.TrimSpace(input.Name)
 	if ctx == nil || input.TenantID == 0 || code == "" || name == "" {
 		return nil, fmt.Errorf("%w: tenant, role code and name are required", ErrInvalidArgument)
@@ -277,7 +277,7 @@ func (a *Authorizer) CreateRole(ctx context.Context, input CreateRoleInput) (*Ro
 	return role, nil
 }
 
-func (a *Authorizer) RoleByID(ctx context.Context, roleID uint64) (*Role, error) {
+func (a *DefaultAuthorizer) RoleByID(ctx context.Context, roleID uint64) (*Role, error) {
 	if ctx == nil || roleID == 0 {
 		return nil, fmt.Errorf("%w: role is required", ErrInvalidArgument)
 	}
@@ -288,7 +288,7 @@ func (a *Authorizer) RoleByID(ctx context.Context, roleID uint64) (*Role, error)
 	return &role, nil
 }
 
-func (a *Authorizer) SetRoleStatus(ctx context.Context, roleID uint64, status Status) error {
+func (a *DefaultAuthorizer) SetRoleStatus(ctx context.Context, roleID uint64, status Status) error {
 	if ctx == nil || roleID == 0 || !validStatus(status) {
 		return fmt.Errorf("%w: role and valid status are required", ErrInvalidArgument)
 	}
@@ -297,7 +297,7 @@ func (a *Authorizer) SetRoleStatus(ctx context.Context, roleID uint64, status St
 
 // RegisterPermissions inserts or updates permissions by code and returns them
 // in the same order as the inputs.
-func (a *Authorizer) RegisterPermissions(ctx context.Context, inputs ...PermissionInput) ([]Permission, error) {
+func (a *DefaultAuthorizer) RegisterPermissions(ctx context.Context, inputs ...PermissionInput) ([]Permission, error) {
 	if ctx == nil || len(inputs) == 0 {
 		return nil, fmt.Errorf("%w: at least one permission is required", ErrInvalidArgument)
 	}
@@ -358,7 +358,7 @@ func (a *Authorizer) RegisterPermissions(ctx context.Context, inputs ...Permissi
 	return permissions, nil
 }
 
-func (a *Authorizer) PermissionByCode(ctx context.Context, code string) (*Permission, error) {
+func (a *DefaultAuthorizer) PermissionByCode(ctx context.Context, code string) (*Permission, error) {
 	code = strings.TrimSpace(code)
 	if ctx == nil || code == "" {
 		return nil, fmt.Errorf("%w: permission code is required", ErrInvalidArgument)
@@ -370,7 +370,7 @@ func (a *Authorizer) PermissionByCode(ctx context.Context, code string) (*Permis
 	return &permission, nil
 }
 
-func (a *Authorizer) SetPermissionStatus(ctx context.Context, permissionID uint64, status Status) error {
+func (a *DefaultAuthorizer) SetPermissionStatus(ctx context.Context, permissionID uint64, status Status) error {
 	if ctx == nil || permissionID == 0 || !validStatus(status) {
 		return fmt.Errorf("%w: permission and valid status are required", ErrInvalidArgument)
 	}
@@ -378,7 +378,7 @@ func (a *Authorizer) SetPermissionStatus(ctx context.Context, permissionID uint6
 }
 
 // GrantPermissions idempotently grants permissions to a role.
-func (a *Authorizer) GrantPermissions(ctx context.Context, roleID uint64, permissionIDs ...uint64) error {
+func (a *DefaultAuthorizer) GrantPermissions(ctx context.Context, roleID uint64, permissionIDs ...uint64) error {
 	permissionIDs = uniqueIDs(permissionIDs)
 	if ctx == nil || roleID == 0 || len(permissionIDs) == 0 {
 		return fmt.Errorf("%w: role and permissions are required", ErrInvalidArgument)
@@ -396,7 +396,7 @@ func (a *Authorizer) GrantPermissions(ctx context.Context, roleID uint64, permis
 	return nil
 }
 
-func (a *Authorizer) RevokePermissions(ctx context.Context, roleID uint64, permissionIDs ...uint64) error {
+func (a *DefaultAuthorizer) RevokePermissions(ctx context.Context, roleID uint64, permissionIDs ...uint64) error {
 	permissionIDs = uniqueIDs(permissionIDs)
 	if ctx == nil || roleID == 0 || len(permissionIDs) == 0 {
 		return fmt.Errorf("%w: role and permissions are required", ErrInvalidArgument)
@@ -411,7 +411,7 @@ func (a *Authorizer) RevokePermissions(ctx context.Context, roleID uint64, permi
 }
 
 // AssignRoles idempotently assigns tenant roles to an active tenant member.
-func (a *Authorizer) AssignRoles(ctx context.Context, tenantID, userID uint64, roleIDs ...uint64) error {
+func (a *DefaultAuthorizer) AssignRoles(ctx context.Context, tenantID, userID uint64, roleIDs ...uint64) error {
 	roleIDs = uniqueIDs(roleIDs)
 	if ctx == nil || tenantID == 0 || userID == 0 || len(roleIDs) == 0 {
 		return fmt.Errorf("%w: tenant, user and roles are required", ErrInvalidArgument)
@@ -442,7 +442,7 @@ func (a *Authorizer) AssignRoles(ctx context.Context, tenantID, userID uint64, r
 	return nil
 }
 
-func (a *Authorizer) RevokeRoles(ctx context.Context, tenantID, userID uint64, roleIDs ...uint64) error {
+func (a *DefaultAuthorizer) RevokeRoles(ctx context.Context, tenantID, userID uint64, roleIDs ...uint64) error {
 	roleIDs = uniqueIDs(roleIDs)
 	if ctx == nil || tenantID == 0 || userID == 0 || len(roleIDs) == 0 {
 		return fmt.Errorf("%w: tenant, user and roles are required", ErrInvalidArgument)
@@ -456,7 +456,7 @@ func (a *Authorizer) RevokeRoles(ctx context.Context, tenantID, userID uint64, r
 	return nil
 }
 
-func (a *Authorizer) ListUserRoles(ctx context.Context, tenantID, userID uint64) ([]Role, error) {
+func (a *DefaultAuthorizer) ListUserRoles(ctx context.Context, tenantID, userID uint64) ([]Role, error) {
 	if ctx == nil || tenantID == 0 || userID == 0 {
 		return nil, fmt.Errorf("%w: tenant and user are required", ErrInvalidArgument)
 	}
@@ -473,7 +473,7 @@ func (a *Authorizer) ListUserRoles(ctx context.Context, tenantID, userID uint64)
 	return roles, nil
 }
 
-func (a *Authorizer) requireActiveUserAndTenant(ctx context.Context, tenantID, userID uint64) error {
+func (a *DefaultAuthorizer) requireActiveUserAndTenant(ctx context.Context, tenantID, userID uint64) error {
 	var users int64
 	if err := a.db.WithContext(ctx).Model(&User{}).Where("id = ? AND status = ?", userID, StatusActive).Count(&users).Error; err != nil {
 		return fmt.Errorf("authorizer: validate user: %w", err)
@@ -484,7 +484,7 @@ func (a *Authorizer) requireActiveUserAndTenant(ctx context.Context, tenantID, u
 	return a.requireActiveTenant(ctx, tenantID)
 }
 
-func (a *Authorizer) requireActiveTenant(ctx context.Context, tenantID uint64) error {
+func (a *DefaultAuthorizer) requireActiveTenant(ctx context.Context, tenantID uint64) error {
 	var tenants int64
 	if err := a.db.WithContext(ctx).Model(&Tenant{}).Where("id = ? AND status = ?", tenantID, StatusActive).Count(&tenants).Error; err != nil {
 		return fmt.Errorf("authorizer: validate tenant: %w", err)
@@ -495,7 +495,7 @@ func (a *Authorizer) requireActiveTenant(ctx context.Context, tenantID uint64) e
 	return nil
 }
 
-func (a *Authorizer) requireRoleAndPermissions(ctx context.Context, roleID uint64, permissionIDs []uint64) error {
+func (a *DefaultAuthorizer) requireRoleAndPermissions(ctx context.Context, roleID uint64, permissionIDs []uint64) error {
 	var roles int64
 	if err := a.db.WithContext(ctx).Model(&Role{}).Where("id = ?", roleID).Count(&roles).Error; err != nil {
 		return fmt.Errorf("authorizer: validate role: %w", err)

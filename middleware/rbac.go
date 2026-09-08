@@ -19,12 +19,6 @@ const (
 	reasonInternal        = "RBAC_INTERNAL_ERROR"
 )
 
-// Enforcer is satisfied by *authorizer.Authorizer and is intentionally small
-// so middleware can be tested or backed by a cache/decorator.
-type Enforcer interface {
-	Enforce(ctx context.Context, userID, tenantID uint64, permission string) (bool, error)
-}
-
 // PrincipalResolver extracts the authenticated user and selected tenant.
 type PrincipalResolver func(context.Context) (authorizer.Principal, bool)
 
@@ -77,7 +71,7 @@ func WithPermissionMap(permissionByOperation map[string]string) Option {
 
 // Server builds go-kratos RBAC middleware. Place authentication middleware
 // before this middleware so the configured PrincipalResolver can read identity.
-func Server(enforcer Enforcer, options ...Option) kratosmiddleware.Middleware {
+func Server(enforcer authorizer.Authorizer, options ...Option) kratosmiddleware.Middleware {
 	configuration := config{
 		principalResolver: authorizer.PrincipalFromContext,
 		permissionResolver: func(_ context.Context, operation string, _ any) (string, bool) {
