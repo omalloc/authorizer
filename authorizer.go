@@ -23,6 +23,7 @@ type Authorizer interface {
 type ManagementAuthorizer interface {
 	Authorizer
 
+	WithTransaction(db *gorm.DB) ManagementAuthorizer
 	// AddMember 将用户加入租户；已存在的成员关系会被重新激活。
 	AddMember(ctx context.Context, tenantID uint64, userID uint64) error
 	// AssignRoles 为活跃租户成员幂等分配同一租户内的角色。
@@ -117,6 +118,14 @@ func New(db *gorm.DB, options ...Option) (ManagementAuthorizer, error) {
 // DB returns the underlying GORM handle for advanced read-only queries or
 // application-managed transactions.
 func (a *DefaultAuthorizer) DB() *gorm.DB { return a.db }
+
+// WithTransaction creates new instance of authorizer for transactions
+func (a *DefaultAuthorizer) WithTransaction(db *gorm.DB) ManagementAuthorizer {
+	return &DefaultAuthorizer{
+		db:                db,
+		permissionMatcher: a.permissionMatcher,
+	}
+}
 
 // AutoMigrate creates and evolves all module-owned tables.
 func (a *DefaultAuthorizer) AutoMigrate(ctx context.Context) error {

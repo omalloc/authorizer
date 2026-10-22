@@ -74,6 +74,34 @@ func TestServerCanExplicitlySkipPublicOperation(t *testing.T) {
 	}
 }
 
+// TestServerAllowsAuthenticatedOnlyOperation 验证空 permission 表示"仅需登录"：
+// 有可解析身份时放行且不查询权限，没有身份时依旧返回 401。
+func TestServerAllowsAuthenticatedOnlyOperation(t *testing.T) {
+	const operation = "/admin.v1.AuthzService/CurrentUser"
+	enforcer := &enforcerStub{allowed: false}
+	called := false
+	handler := Server(enforcer, WithPermissionMap(map[string]string{
+		operation: "",
+	}))(func(_ context.Context, _ any) (any, error) {
+		called = true
+		return "ok", nil
+	})
+
+	ctx := authorizer.WithPrincipal(serverContext(operation), authorizer.Principal{UserID: 7, TenantID: 9})
+	reply, err := handler(ctx, nil)
+	if err != nil || reply != "ok" || !called {
+		t.Fatalf("authenticated-only operation failed: reply=%v called=%v err=%v", reply, called, err)
+	}
+	if enforcer.permission != "" {
+		t.Fatalf("permission must not be looked up, got %q", enforcer.permission)
+	}
+
+	_, err = handler(serverContext(operation), nil)
+	if kratoserrors.Code(err) != 401 {
+		t.Fatalf("missing identity code = %d, want 401; err=%v", kratoserrors.Code(err), err)
+	}
+}
+
 func TestJWTMapClaims(t *testing.T) {
 	ctx := kratosjwt.NewContext(context.Background(), jwtv5.MapClaims{
 		"user_id":   "42",

@@ -259,7 +259,20 @@ httpServer := http.NewServer(
 )
 ```
 
-`WithPermissionMap` 中未配置的 operation 仍会被保护，并使用完整 operation 作为权限代码，避免漏配后意外放行。公开接口必须显式声明：
+`WithPermissionMap` 中未配置的 operation 仍会被保护，并使用完整 operation 作为权限代码，避免漏配后意外放行。
+
+介于"公开"与"需要权限"之间还有一类接口：**只需要登录、不需要权限**。把 operation 映射为空字符串即可声明，中间件仍会要求可解析的身份（Token 中的用户与租户），只是跳过权限查询：
+
+```go
+rbacmw.Server(authz, rbacmw.WithPermissionMap(map[string]string{
+    "/admin.v1.AuthzService/CurrentUser": "", // 登录即可，无需权限
+    "/billing.Invoice/Get":               "invoice.read",
+}))
+```
+
+这类接口适合登录后引导阶段使用（客户端此时还不知道自己有哪些权限），或所有成员都可调用的接口。注意它仍然会拒绝匿名请求和无法解析出租户的 Token（例如 refresh token），返回 `401`。
+
+公开接口必须显式声明：
 
 ```go
 rbacmw.Server(authz, rbacmw.WithPermissionResolver(

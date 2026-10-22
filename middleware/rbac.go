@@ -22,8 +22,12 @@ const (
 // PrincipalResolver extracts the authenticated user and selected tenant.
 type PrincipalResolver func(context.Context) (authorizer.Principal, bool)
 
-// PermissionResolver maps a Kratos operation to a permission. Returning false
-// explicitly marks the request as public and bypasses authorization.
+// PermissionResolver maps a Kratos operation to a permission.
+//
+// protected=false 表示公开接口：认证与授权都被跳过。
+// protected=true 且 permission 为空表示"仅需登录"：仍要求可解析的身份（用户与租户），
+// 但不做权限查询。适用于登录后引导阶段调用的接口，例如
+// /admin.v1.AuthzService/CurrentUser。
 type PermissionResolver func(ctx context.Context, operation string, request any) (permission string, protected bool)
 
 type config struct {
@@ -56,6 +60,7 @@ func WithPermissionResolver(resolver PermissionResolver) Option {
 
 // WithPermissionMap maps selected operations to domain permission codes. Any
 // operation not in the map remains protected using its full operation string.
+// 把 operation 映射为空字符串即可声明"仅需登录、无需权限"。
 func WithPermissionMap(permissionByOperation map[string]string) Option {
 	permissionMap := make(map[string]string, len(permissionByOperation))
 	for operation, permission := range permissionByOperation {
@@ -98,13 +103,14 @@ func Server(enforcer authorizer.Authorizer, options ...Option) kratosmiddleware.
 			if !protected {
 				return next(ctx, request)
 			}
-			if permission == "" {
-				return nil, kratoserrors.InternalServer(reasonInternal, "RBAC permission mapping is empty")
-			}
 
 			principal, ok := configuration.principalResolver(ctx)
 			if !ok || principal.UserID == 0 || principal.TenantID == 0 {
 				return nil, kratoserrors.Unauthorized(reasonUnauthenticated, "authentication and tenant selection are required")
+			}
+			// permission 为空表示该接口只要求登录：身份校验通过即放行，不再查询权限。
+			if permission == "" {
+				return next(ctx, request)
 			}
 			allowed, err := enforcer.Enforce(ctx, principal.UserID, principal.TenantID, permission)
 			if err != nil {
